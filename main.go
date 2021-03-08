@@ -10,11 +10,21 @@ import (
 	"github.com/ardnew/version"
 )
 
+// variables exported by Makefile via Go linker
+var (
+	PROJECT   string
+	VERSION   string
+	BRANCH    string
+	REVISION  string
+	BUILDTIME string
+	PLATFORM  string
+)
+
 func init() {
 	version.ChangeLog = []version.Change{{
-		Package: "erro",
-		Version: "0.1.0",
-		Date:    "2021 Mar 08",
+		Package: PROJECT,
+		Version: VERSION,
+		Date:    BUILDTIME,
 		Description: []string{
 			"initial implementation",
 		},

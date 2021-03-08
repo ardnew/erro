@@ -10,20 +10,39 @@
 
 ## Usage
 
-How to use:
+Use `erro` just like you would `echo`:
 
-```sh
-erro [options] [text|-]
+```
+$ erro "Hello darkness, my old friend"
+Hello darkness, my old friend
+```
+
+As a formatting convenience, you can also perform argument substitution with the `-f` flag as follows:
+
+```
+$ erro -f "Hello {1}, my old {0}" darkness friend
+Hello friend, my old darkness
 ```
 
 Use the `-h` flag for usage summary:
 
-```
-Usage of erro:
-  -V
-		display change history
+```sh
+usage:
+  erro [options] [args ...]
+
+options:
   -v
-		display version information
+        Display version information
+  -V
+        Display change history
+  -n
+        Do not output a trailing newline
+  -e
+        Enable interpretation of backslash escapes
+  -E
+        Disable interpretation of backslash escapes (default true)
+  -f format
+        Format output string according to format, where "{N}" represents argument N
 ```
 
 ## Installation
