@@ -22,11 +22,18 @@ var (
 
 func init() {
 	version.ChangeLog = []version.Change{{
+		Package: "erro",
+		Version: "0.1.0",
+		Date:    "2021-03-09T20:05:09Z",
+		Description: []string{
+			"initial implementation",
+		},
+	}, {
 		Package: PROJECT,
 		Version: VERSION,
 		Date:    BUILDTIME,
 		Description: []string{
-			"initial implementation",
+			"implemented proper support for escape sequences",
 		},
 	}}
 }
@@ -35,6 +42,9 @@ func main() {
 	var code int
 	switch err := cmd.Erro(flag.CommandLine, os.Args...).(type) {
 	case *cmd.ErrParseFlags:
+		fmt.Println(err.Error())
+		code = 1
+	case *cmd.ErrPrintStream:
 		fmt.Println(err.Error())
 		code = 1
 	default:

@@ -2,7 +2,7 @@
 #  project configuration (symbols exported verbatim via Go linker)
 
 PROJECT   ?= erro
-VERSION   ?= 0.1.0
+VERSION   ?= 0.2.0
 BRANCH    ?= $(shell git symbolic-ref --short HEAD)
 REVISION  ?= $(shell git rev-parse --short HEAD)
 BUILDTIME ?= $(shell date -u '+%FT%TZ')

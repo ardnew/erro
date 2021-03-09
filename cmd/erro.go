@@ -4,148 +4,105 @@ import (
 	"flag"
 	"fmt"
 	"os"
-	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ardnew/version"
 )
 
-// Type definitions for various errors raised by cmd package.
-type (
-	ErrParseFlags struct {
-		err error
-		arg []string
-	}
-	ErrIOError string
-)
-
-// Error returns the string representation of ErrParseFlags
-func (e ErrParseFlags) Error() string {
-	a := enquote(e.arg...)
-	return fmt.Sprintf("parse: %s: [%s]", e.err.Error(), strings.Join(a, ","))
-}
-
-func (e ErrIOError) Error() string {
-	return fmt.Sprintf("failed to write to stderr: %s", string(e))
-}
-
-func usage(set *flag.FlagSet, separated bool) {
-	exe := filepath.Base(executablePath())
-	if separated {
-		fmt.Fprintln(os.Stderr, "--")
-	}
-	fmt.Fprintln(os.Stderr, "usage:")
-	fmt.Fprintln(os.Stderr, "  "+exe, "[options]", "[args ...]")
-	fmt.Fprintln(os.Stderr)
-	fmt.Fprintln(os.Stderr, "options:")
-	fmt.Fprintln(os.Stderr, "  -v")
-	fmt.Fprintln(os.Stderr, "  	Display version information")
-	fmt.Fprintln(os.Stderr, "  -V")
-	fmt.Fprintln(os.Stderr, "  	Display change history")
-	fmt.Fprintln(os.Stderr, "  -n")
-	fmt.Fprintln(os.Stderr, "  	Do not output a trailing newline")
-	fmt.Fprintln(os.Stderr, "  -e")
-	fmt.Fprintln(os.Stderr, "  	Enable interpretation of backslash escapes")
-	fmt.Fprintln(os.Stderr, "  -E")
-	fmt.Fprintln(os.Stderr, "  	Disable interpretation of backslash escapes (default true)")
-	fmt.Fprintln(os.Stderr, "  -f format")
-	fmt.Fprintln(os.Stderr, "  	Format output string according to format, where \"{N}\" represents argument N")
-}
-
-// Erro writes the given arguments to stderr according to command-line flags.
+// Erro writes the given arguments to stderr using options provided in the given
+// set of flags.
 func Erro(set *flag.FlagSet, arg ...string) error {
 
-	var (
-		argVersion bool
-		argChanges bool
-		argNewline bool
-		argEscapes bool
-		argLiteral bool
-		argFormats string
-	)
-
-	args := []string{}
-	if len(arg) > 1 {
-		args = append(args, arg[1:]...)
+	config, err := Parse(set, arg...)
+	if nil != err {
+		return err
 	}
 
-	set.BoolVar(&argVersion, "v", false, "")
-	set.BoolVar(&argChanges, "V", false, "")
-	set.BoolVar(&argNewline, "n", false, "")
-	set.BoolVar(&argEscapes, "e", false, "")
-	set.BoolVar(&argLiteral, "E", true, "")
-	set.StringVar(&argFormats, "f", "", "")
-	set.Usage = func() { usage(set, false) }
-	if err := set.Parse(args); nil != err {
-		return ErrParseFlags{err: err, arg: args}
-	}
-
-	if argChanges {
+	if config.ShowChanges {
 		version.PrintChangeLog()
-	} else if argVersion {
+	} else if config.ShowVersion {
 		fmt.Printf("erro version %s\n", version.String())
 	} else {
 
-		given := flagsProvided(set)
-
-		_, escGiven := given["e"]
-		_, litGiven := given["E"]
-
-		literal := argEscapes == argLiteral && (litGiven && escGiven) &&
-			argFormats == ""
-
 		var output string
-		if literal {
-			output = strings.Join(set.Args(), " ")
-		} else {
-			if "" != argFormats {
-				output = argFormats
-				for i, s := range set.Args() {
-					output = strings.ReplaceAll(output, fmt.Sprintf("{%d}", i), s)
-				}
-			} else {
-				output = fmt.Sprintf("%s", strings.Join(set.Args(), " "))
+		var cancel bool
+		switch config.Mode {
+		case Literal:
+			output = strings.Join(config.Args, " ")
+		case Escaped:
+			output, cancel = escape(strings.Join(config.Args, " "))
+		case Formats:
+			output = config.Format
+			for i, s := range config.Args {
+				output = strings.ReplaceAll(output, fmt.Sprintf("{%d}", i), s)
 			}
-			output = fmt.Sprintf("%s", output) // expand any remaining escapes
+			output, cancel = escape(output)
 		}
 
-		var err error
-		if argNewline {
-			_, err = fmt.Fprint(os.Stderr, output)
-		} else {
-			_, err = fmt.Fprintln(os.Stderr, output)
+		print := fmt.Fprint
+		if config.AddNewline && !cancel {
+			print = fmt.Fprintln
 		}
-		if nil != err {
-			return ErrIOError(err.Error())
+
+		if _, err := print(os.Stderr, output); nil != err {
+			return &ErrPrintStream{err: err, str: output}
 		}
 	}
+
 	return nil
 }
 
-func executablePath() string {
-	exe, err := os.Executable()
-	if nil != err {
-		panic("error: cannot determine executable: " + err.Error())
+// escape replaces all recognized escape sequences with their evaluated result.
+// If the special escape sequence "\c" is found, all trailing text is truncated
+// and the bool return value will be true. otherwise, the bool will be false.
+func escape(str string) (string, bool) {
+	escSeq := regexp.MustCompile(`\\[\\abcefnrtv]|\\0[0-7]{1,3}|\\x[0-9a-fA-F]{1,2}`)
+	idx := escSeq.FindAllStringIndex(str, -1)
+	if idx != nil {
+		var out string
+		for i, loc := range idx {
+			beg := 0
+			if i > 0 {
+				beg = idx[i-1][1]
+			}
+			out += str[beg:loc[0]]
+			switch str[loc[0]+1] {
+			case '0':
+				if val, err := strconv.ParseUint(str[loc[0]+2:loc[1]], 8, 8); nil == err {
+					out += string([]byte{byte(val)})
+				}
+			case 'x':
+				if val, err := strconv.ParseUint(str[loc[0]+2:loc[1]], 16, 8); nil == err {
+					out += string([]byte{byte(val)})
+				}
+			case 'c':
+				return out, true
+			case '\\':
+				out += "\\"
+			case 'a':
+				out += "\a"
+			case 'b':
+				out += "\b"
+			case 'e':
+				out += "\x1B"
+			case 'f':
+				out += "\f"
+			case 'n':
+				out += "\n"
+			case 'r':
+				out += "\r"
+			case 't':
+				out += "\t"
+			case 'v':
+				out += "\v"
+			}
+			if i+1 == len(idx) {
+				out += str[loc[1]:]
+			}
+		}
+		return out, false
 	}
-	return exe
-}
-
-func flagsProvided(set *flag.FlagSet) map[string]flag.Value {
-	m := map[string]flag.Value{}
-	set.Visit(func(f *flag.Flag) { m[f.Name] = f.Value })
-	return m
-}
-
-func enquote(str ...string) []string {
-	return mapEach(func(s string) string {
-		return "'" + strings.ReplaceAll(s, "'", "\\'") + "'"
-	}, str...)
-}
-
-func mapEach(fn func(string) string, str ...string) []string {
-	out := make([]string, len(str))
-	for i, s := range str {
-		out[i] = fn(s)
-	}
-	return out
+	return str, false
 }
