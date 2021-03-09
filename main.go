@@ -42,13 +42,11 @@ func main() {
 	var code int
 	switch err := cmd.Erro(flag.CommandLine, os.Args...).(type) {
 	case *cmd.ErrParseFlags:
-		fmt.Println(err.Error())
-		code = 1
+		fmt.Fprintln(os.Stderr, err.Error())
+		code = err.Code()
 	case *cmd.ErrPrintStream:
-		fmt.Println(err.Error())
-		code = 1
-	default:
-		code = 0
+		fmt.Fprintln(os.Stderr, err.Error())
+		code = err.Code()
 	}
 	os.Exit(code)
 }
