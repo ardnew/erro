@@ -170,10 +170,10 @@ $(runsh):
 .PHONY: release
 release: 
 	@$(test) -z "$$( $(git) status --porcelain=v1 )" || \
-		$(echo) "working tree contains modified files" && false
+	  $(echo) "working tree contains modified files" && false
 	@# make target $(RELEASE) for all platforms (or $(DEFAULT) if undefined)
 	for p in $$( $(make) show-platforms ); do \
-		$(make) PLATFORM="$${p}" $(artifact); done
+	  $(make) PLATFORM="$${p}" $(artifact); done
 	$(gh) release create v$(VERSION) --generate-notes $(pkgver)/*.$(artifact)
 
 .PHONY: zip
