@@ -2,11 +2,13 @@
 #  project configuration (symbols exported verbatim via Go linker)
 
 PROJECT   ?= erro
+IMPORT    ?= github.com/ardnew/$(PROJECT)
 VERSION   ?= 0.2.1
 BRANCH    ?= $(shell git symbolic-ref --short HEAD)
 REVISION  ?= $(shell git rev-parse --short HEAD)
 BUILDTIME ?= $(shell date -u '+%FT%TZ')
-PLATFORM  ?= linux-amd64
+TARGET    ?= $(shell uname -s | tr 'A-Z' 'a-z')
+PLATFORM  ?= $(TARGET)-amd64
 
 # default output paths
 BINPATH ?= bin
@@ -15,14 +17,18 @@ PKGPATH ?= pkg
 # consider all Go source files recursively from working dir
 SOURCES ?= $(shell find . -type f -iname '*.go')
 
+# Go modules support
+GOMODFILE ?= go.mod
+GOSUMFILE ?= go.sum
+
 # other non-Go source files that may affect build staleness
-METASOURCES ?= Makefile go.mod
+METASOURCES ?= Makefile $(GOMODFILE) $(GOSUMFILE)
 
 # other files to include with distribution packages
 EXTRAFILES ?= LICENSE README.md
 
 # Go package import path where the exported symbols will be defined
-IMPORTPATH ?= main
+MAINPKGPATH ?= main
 
 # Makefile identifiers to export (as strings) via Go linker
 EXPORTS ?= PROJECT VERSION BRANCH REVISION BUILDTIME PLATFORM
@@ -32,11 +38,11 @@ EXPORTS ?= PROJECT VERSION BRANCH REVISION BUILDTIME PLATFORM
 
 # supported platforms (GOARCH-GOOS)
 platforms :=                                           \
-	linux-amd64 linux-386 linux-arm64 linux-arm          \
-	darwin-amd64 darwin-arm64                            \
-	windows-amd64 windows-386                            \
-	freebsd-amd64 freebsd-386 freebsd-arm                \
-	android-amd64 android-386 android-arm64 android-arm
+  linux-amd64 linux-386 linux-arm64 linux-arm          \
+  darwin-amd64 darwin-arm64                            \
+  windows-amd64 windows-386                            \
+  freebsd-amd64 freebsd-386 freebsd-arm                \
+  android-amd64 android-386 android-arm64 android-arm
 
 # invalid build target provided
 ifeq "" "$(strip $(filter $(platforms),$(PLATFORM)))"
@@ -70,7 +76,7 @@ tbz   := tar -cjvf
 zip   := zip -vr
 
 # go build flags: export variables as strings to the selected package
-goflags ?= -v -ldflags='-w -s $(foreach %,$(EXPORTS),-X "$(IMPORTPATH).$(%)=$($(%))")'
+goflags ?= -v -ldflags='-w -s $(foreach %,$(EXPORTS),-X "$(MAINPKGPATH).$(%)=$($(%))")'
 
 # output paths
 bindir := $(BINPATH)/$(PLATFORM)
@@ -109,6 +115,10 @@ clean:
 	$(rm) "$(bindir)" "$(pkgver)/$(triple)"
 	$(go) clean
 
+.PHONY: tidy
+tidy: $(GOMODFILE) $(GOSUMFILE)
+	$(go) mod tidy
+
 .PHONY: build
 build: $(binexe)
 
@@ -119,10 +129,16 @@ vet: $(SOURCES) $(METASOURCES)
 .PHONY: run
 run: $(runsh)
 
+$(GOMODFILE):
+	$(go) mod init $(IMPORT)
+
+$(GOSUMFILE):
+	$(go) mod download
+
 $(bindir) $(pkgver) $(pkgver)/$(triple):
 	@$(test) -d "$(@)" || $(mkdir) "$(@)"
 
-$(binexe): $(SOURCES) $(METASOURCES) $(bindir)
+$(binexe): $(SOURCES) $(METASOURCES) tidy | $(bindir)
 	$(go) build -o "$(@)" $(goflags)
 	@$(echo) " -- success: $(@)"
 
