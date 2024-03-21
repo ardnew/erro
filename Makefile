@@ -166,7 +166,7 @@ $(runsh):
 #  targets for creating versioned packages (.zip, .tar.gz, or .tar.bz2)
 
 .PHONY: release
-release: artifact=$(or $(RELEASE),$(DEFAULT))
+release: artifact = $(or $(RELEASE),$(DEFAULT))
 release:
 	@$(test) -z "$$( $(git) status --porcelain=v1 )" || \
 		$(echo) "working tree contains modified files" && false
