@@ -169,7 +169,7 @@ $(runsh):
 
 .PHONY: release
 release: 
-	@$(test) -z "$$( $(git) status --porcelain=v1 )" || \
+	$(test) -z "$$( $(git) status --porcelain=v1 )" || \
 	  $(echo) "working tree contains modified files" && false
 	@# make target $(RELEASE) for all platforms (or $(DEFAULT) if undefined)
 	for p in $$( $(make) show-platforms ); do \
