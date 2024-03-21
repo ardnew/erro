@@ -43,7 +43,7 @@ platforms :=                                           \
   darwin-amd64 darwin-arm64                            \
   windows-amd64 windows-386                            \
   freebsd-amd64 freebsd-386 freebsd-arm                \
-  android-amd64
+  android-arm64
 
 show-platforms := $(addprefix show-,$(platforms))
 
