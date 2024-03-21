@@ -3,12 +3,13 @@
 
 PROJECT   ?= erro
 IMPORT    ?= github.com/ardnew/$(PROJECT)
-VERSION   ?= 0.2.1
+VERSION   ?= 0.2.3
 BRANCH    ?= $(shell git symbolic-ref --short HEAD)
 REVISION  ?= $(shell git rev-parse --short HEAD)
 BUILDTIME ?= $(shell date -u '+%FT%TZ')
 TARGET    ?= $(shell uname -s | tr 'A-Z' 'a-z')
 PLATFORM  ?= $(TARGET)-amd64
+DEFAULT   ?= zip # only for "release" target
 
 # default output paths
 BINPATH ?= bin
@@ -42,7 +43,9 @@ platforms :=                                           \
   darwin-amd64 darwin-arm64                            \
   windows-amd64 windows-386                            \
   freebsd-amd64 freebsd-386 freebsd-arm                \
-  android-amd64 android-386 android-arm64 android-arm
+  android-amd64
+
+show-platforms := $(addprefix show-,$(platforms))
 
 # invalid build target provided
 ifeq "" "$(strip $(filter $(platforms),$(PLATFORM)))"
@@ -62,6 +65,7 @@ zipext := .zip
 # system commands
 echo  := echo
 test  := test
+make  := make
 cd    := cd
 rm    := rm -rvf
 mv    := mv -v
@@ -71,6 +75,8 @@ chmod := chmod -v
 tail  := tail
 grep  := command grep
 go    := GOOS="$(os)" GOARCH="$(arch)" go
+git   := git
+gh    := gh
 tgz   := tar -czvf
 tbz   := tar -cjvf
 zip   := zip -vr
@@ -129,6 +135,13 @@ vet: $(SOURCES) $(METASOURCES)
 .PHONY: run
 run: $(runsh)
 
+.PHONY: $(show-platforms)
+$(show-platforms):
+	@$(echo) $(subst show-,,$(@))
+
+.PHONY: show-platforms
+show-platforms: | $(show-platforms)
+
 $(GOMODFILE):
 	$(go) mod init $(IMPORT)
 
@@ -151,6 +164,16 @@ $(runsh):
 
 # ------------------------------------------------------------------------------
 #  targets for creating versioned packages (.zip, .tar.gz, or .tar.bz2)
+
+.PHONY: release
+release: artifact = $(or $(RELEASE),$(DEFAULT))
+release:
+	$(test) -z "$$( $(git) status --porcelain=v1 )" || \
+	  { $(echo) "working tree contains modified files"; false; }
+	@# make target $(RELEASE) for all platforms (or $(DEFAULT) if undefined)
+	for p in $$( $(make) show-platforms ); do \
+	  $(make) PLATFORM="$${p}" $(artifact); done
+	$(gh) release create v$(VERSION) --generate-notes $(pkgver)/*.$(artifact)
 
 .PHONY: zip
 zip: $(EXTRAFILES) $(pkgver)/$(triple)$(zipext)
