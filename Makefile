@@ -3,7 +3,7 @@
 
 PROJECT   ?= erro
 IMPORT    ?= github.com/ardnew/$(PROJECT)
-VERSION   ?= 0.2.3
+VERSION   ?= 0.2.4
 BRANCH    ?= $(shell git symbolic-ref --short HEAD)
 REVISION  ?= $(shell git rev-parse --short HEAD)
 BUILDTIME ?= $(shell date -u '+%FT%TZ')
@@ -168,7 +168,7 @@ $(runsh):
 .PHONY: release
 release: artifact = $(or $(RELEASE),$(DEFAULT))
 release:
-	$(test) -z "$$( $(git) status --porcelain=v1 )" || \
+	@$(test) -z "$$( $(git) status --porcelain=v1 )" || \
 	  { $(echo) "working tree contains modified files"; false; }
 	@# make target $(RELEASE) for all platforms (or $(DEFAULT) if undefined)
 	for p in $$( $(make) show-platforms ); do \
