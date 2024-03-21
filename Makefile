@@ -62,6 +62,8 @@ tgzext := .tar.gz
 tbzext := .tar.bz2
 zipext := .zip
 
+artifact = $(or $(RELEASE),$(DEFAULT))
+
 # system commands
 echo  := echo
 test  := test
@@ -166,8 +168,7 @@ $(runsh):
 #  targets for creating versioned packages (.zip, .tar.gz, or .tar.bz2)
 
 .PHONY: release
-release: artifact = $(or $(RELEASE),$(DEFAULT))
-release:
+release: 
 	@$(test) -z "$$( $(git) status --porcelain=v1 )" || \
 		$(echo) "working tree contains modified files" && false
 	@# make target $(RELEASE) for all platforms (or $(DEFAULT) if undefined)
